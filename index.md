@@ -39,13 +39,13 @@ Having trouble with Pages? Check out our [documentation](https://docs.github.com
 
 ### WCF配置knownType
 ```markdown
-  <system.runtime.serialization>
-    <dataContractSerializer>
-      <declaredTypes>
-        <add type = "Baidu.Modules.DataContract.Equipment.EquimentModel,TopStrong.Modules.DataContract,Version=1.0.0.0,Culture=neutral,PublicKeyToken=null, processorArchitecture=MSIL">
-          <knownType type = "Baidu.Modules.DataContract.Equipment.PointCheckStd,TopStrong.Modules.DataContract, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null, processorArchitecture=MSIL"/>
-        </add>
-      </declaredTypes>
-    </dataContractSerializer>
-  </system.runtime.serialization>
+<system.runtime.serialization>
+<dataContractSerializer>
+    <declaredTypes>
+    <add type = "Baidu.Modules.DataContract.Equipment.EquimentModel,TopStrong.Modules.DataContract,Version=1.0.0.0,Culture=neutral,PublicKeyToken=null, processorArchitecture=MSIL">
+        <knownType type = "Baidu.Modules.DataContract.Equipment.PointCheckStd,TopStrong.Modules.DataContract, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null, processorArchitecture=MSIL"/>
+    </add>
+    </declaredTypes>
+</dataContractSerializer>
+</system.runtime.serialization>
 ```
