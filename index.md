@@ -36,6 +36,22 @@ Your Pages site will use the layout and styles from the Jekyll theme you have se
 
 Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
 
+### WCF配置调试日志
+```markdown
+<system.diagnostics>
+<sources>
+    <source name="System.ServiceModel"
+            switchValue="Information, ActivityTracing"
+            propagateActivity="true">
+    <listeners>
+        <add name="traceListener"
+            type="System.Diagnostics.XmlWriterTraceListener"
+            initializeData="c:\temp\log\SFC_Traces.svclog"  />
+    </listeners>
+    </source>
+</sources>
+</system.diagnostics>
+```
 
 ### WCF配置knownType
 ```markdown
