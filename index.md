@@ -51,4 +51,4 @@ Having trouble with Pages? Check out our [documentation](https://docs.github.com
 ```
 
 ### DataReader映射到实体类
-查看代码 [代码](https://samxxxxx.github.io/2021-10-25/DataReader-Mapping-Model).
+[查看代码](https://samxxxxx.github.io/2021-10-25/DataReader-Mapping-Model).
