@@ -1,124 +1,161 @@
-<?xml-stylesheet href="/rss.xsl" type="text/xsl"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>SAM</title><link>https://samxxxxx.github.io/</link><description>Recent content on SAM</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 25 Feb 2023 16:06:50 +0800</lastBuildDate><atom:link href="https://samxxxxx.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>Dotnet DataReader映射到实体</title><link>https://samxxxxx.github.io/posts/dotnet-datareader-map/</link><pubDate>Sat, 25 Feb 2023 16:06:50 +0800</pubDate><guid>https://samxxxxx.github.io/posts/dotnet-datareader-map/</guid><description>SAM https://samxxxxx.github.io/posts/dotnet-datareader-map/ -&lt;p>`
-#region Mapper&lt;/p>
-&lt;p>public static IEnumerable&lt;!-- raw HTML omitted --> ReaderTo&lt;!-- raw HTML omitted -->(this IDataReader dataReader)
-{
-System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
-sw.Start();
-var mapper = CreateMappingFunction(dataReader, typeof(T));
-while (dataReader.Read())
-{
-var result = mapper(dataReader as DbDataReader);
-yield return result is T ? (T)result : default(T);
-}
-sw.Stop();
-Console.WriteLine(&amp;ldquo;耗时: {0} 毫秒.&amp;rdquo;, sw.ElapsedMilliseconds);
-}&lt;/p>
-&lt;p>private static Func&amp;lt;DbDataReader, object&amp;gt; CreateMappingFunction(IDataReader reader, Type type)
-{
-//1. 取得sql select所有栏位名称
-var names = Enumerable.Range(0, reader.FieldCount).Select(index =&amp;gt; reader.GetName(index)).ToArray();&lt;/p>
-&lt;pre>&lt;code>//2. 取得mapping类别的属性资料 &amp;gt; 将index,sql栏位,class属性资料做好对应封装在一个变量内方便后面使用
-var props = type.GetProperties().ToList();
-var members = names.Select((columnName, index) =&amp;gt;
-{
-var property = props.Find(p =&amp;gt; string.Equals(p.Name, columnName, StringComparison.OrdinalIgnoreCase));
-return new
-{
-index,
-columnName,
-property
-};
-}).Where(x =&amp;gt; x.property != null);
-//3. 动态建立方法 : 从数据库Reader按照顺序读取我们要的资料
-/*方法逻辑 :
-User 动态方法(IDataReader reader)
-{
-var user = new User();
-var value = reader[0];
-if( !(value is System.DBNull) )
-user.Name = (string)value;
-value = reader[1];
-if( !(value is System.DBNull) )
-user.Age = (int)value;
-return user;
-}
-*/
-var exBodys = new List&amp;lt;Expression&amp;gt;();
-// 方法(IDataReader reader)
-var exParam = Expression.Parameter(typeof(DbDataReader), &amp;quot;reader&amp;quot;);
-// Mapping类别 物件 = new Mapping类别();
-var exVar = Expression.Variable(type, &amp;quot;mappingObj&amp;quot;);
-var exNew = Expression.New(type);
-exBodys.Add(Expression.Assign(exVar, exNew));
-// var value = defalut(object);
-var exValueVar = Expression.Variable(typeof(object), &amp;quot;value&amp;quot;);
-exBodys.Add(Expression.Assign(exValueVar, Expression.Constant(null)));
-var getItemMethod = typeof(DbDataReader)
-.GetMethods()
-.Where(w =&amp;gt; w.Name == &amp;quot;get_Item&amp;quot;)
-.First(w =&amp;gt; w.GetParameters().First().ParameterType == typeof(int));
-foreach (var m in members)
-{
-if (m.property == null)
-continue;
-//reader[0]
-var exCall = Expression.Call(
-exParam,
-getItemMethod,
-Expression.Constant(m.index)
-);
-// value = reader[0];
-exBodys.Add(Expression.Assign(exValueVar, exCall));
-//user.Name = (string)value;
-var exProp = Expression.Property(exVar, m.property.Name);
-//https://stackoverflow.com/questions/2850265/calling-a-generic-method-using-lambda-expressions-and-a-type-only-known-at-runt
-var exParseCall = Expression.Call(typeof(ExpressionMapper), &amp;quot;Parse&amp;quot;, new Type[] { m.property.PropertyType }, exValueVar);
-var assign = Expression.Assign(exProp, exParseCall);
-var exIfThenElse = Expression.IfThenElse(
-Expression.TypeIs(exValueVar, typeof(System.DBNull)), Expression.Default(m.property.PropertyType), assign
-);
-exBodys.Add(exIfThenElse);
-}
-// return user;
-exBodys.Add(exVar);
-// Compiler Expression
-var lambda = Expression.Lambda&amp;lt;Func&amp;lt;DbDataReader, object&amp;gt;&amp;gt;(
-Expression.Block(
-new[] { exVar, exValueVar },
-exBodys
-), exParam
-);
-return lambda.Compile();
-&lt;/code>&lt;/pre>
-&lt;p>}&lt;/p>
-&lt;p>public static T Parse&lt;!-- raw HTML omitted -->(object value)
-{
-if (value == null || value == DBNull.Value)
-return default(T);&lt;/p>
-&lt;pre>&lt;code>if (value is T)
-return (T)value;
-var type = typeof(T);
-type = Nullable.GetUnderlyingType(type) ?? type;
-if (type.IsEnum)
-{
-if (value is float || value is double || value is decimal)
-{
-value = Convert.ChangeType(value, Enum.GetUnderlyingType(type), CultureInfo.InvariantCulture);
-}
-return (T)Enum.ToObject(type, value);
-}
-//if (typeHandlers.TryGetValue(type, out ITypeHandler handler))
-//{
-// return (T)handler.Parse(type, value);
-//}
-return (T)Convert.ChangeType(value, type, CultureInfo.InvariantCulture);
-&lt;/code>&lt;/pre>
-&lt;p>}&lt;/p>
-&lt;p>#endregion
-`&lt;/p>
-- https://samxxxxx.github.io/posts/dotnet-datareader-map/ -</description></item><item><title>DotNet Wcf添加Knowntype</title><link>https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/</link><pubDate>Sat, 25 Feb 2023 16:04:51 +0800</pubDate><guid>https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/</guid><description>SAM https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/ -&lt;p>&lt;code>&amp;lt;system.runtime.serialization&amp;gt; &amp;lt;dataContractSerializer&amp;gt; &amp;lt;declaredTypes&amp;gt; &amp;lt;add type = &amp;quot;Baidu.Modules.DataContract.Equipment.EquimentModel,TopStrong.Modules.DataContract,Version=1.0.0.0,Culture=neutral,PublicKeyToken=null, processorArchitecture=MSIL&amp;quot;&amp;gt; &amp;lt;knownType type = &amp;quot;Baidu.Modules.DataContract.Equipment.PointCheckStd,TopStrong.Modules.DataContract, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null, processorArchitecture=MSIL&amp;quot;/&amp;gt; &amp;lt;/add&amp;gt; &amp;lt;/declaredTypes&amp;gt; &amp;lt;/dataContractSerializer&amp;gt; &amp;lt;/system.runtime.serialization&amp;gt;&lt;/code>&lt;/p>
-- https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/ -</description></item><item><title>dotNet Wcf添加服务调试日志</title><link>https://samxxxxx.github.io/posts/net-wcf-add-log-enable/</link><pubDate>Sat, 25 Feb 2023 15:58:07 +0800</pubDate><guid>https://samxxxxx.github.io/posts/net-wcf-add-log-enable/</guid><description>SAM https://samxxxxx.github.io/posts/net-wcf-add-log-enable/ -&lt;p>在web.config文件中，将配置添加到configuration节中，重启服务后日志文件将写入到c:\temp\log\log_Traces.svclog
-&lt;code>&amp;lt;system.diagnostics&amp;gt; &amp;lt;sources&amp;gt; &amp;lt;source name=&amp;quot;System.ServiceModel&amp;quot; switchValue=&amp;quot;Information, ActivityTracing&amp;quot; propagateActivity=&amp;quot;true&amp;quot;&amp;gt; &amp;lt;listeners&amp;gt; &amp;lt;add name=&amp;quot;traceListener&amp;quot; type=&amp;quot;System.Diagnostics.XmlWriterTraceListener&amp;quot; initializeData=&amp;quot;c:\temp\log\log_Traces.svclog&amp;quot; /&amp;gt; &amp;lt;/listeners&amp;gt; &amp;lt;/source&amp;gt; &amp;lt;/sources&amp;gt; &amp;lt;/system.diagnostics&amp;gt;&lt;/code>&lt;/p>
-- https://samxxxxx.github.io/posts/net-wcf-add-log-enable/ -</description></item><item><title>Hello World</title><link>https://samxxxxx.github.io/posts/my-first-post/</link><pubDate>Sat, 25 Feb 2023 11:48:44 +0800</pubDate><guid>https://samxxxxx.github.io/posts/my-first-post/</guid><description>SAM https://samxxxxx.github.io/posts/my-first-post/ -&lt;p>this is test&lt;/p>
-&lt;p>&lt;code>Console.WriteLine(&amp;quot;hellow World&amp;quot;);&lt;/code>&lt;/p>
-- https://samxxxxx.github.io/posts/my-first-post/ -</description></item></channel></rss>
+<?xml-stylesheet href="/rss.xsl" type="text/xsl"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>SAM.Net开发日常</title><link>https://samxxxxx.github.io/</link><description>Recent content on SAM.Net开发日常</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 25 Feb 2023 16:06:50 +0800</lastBuildDate><atom:link href="https://samxxxxx.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>DotNet DataReader映射到实体</title><link>https://samxxxxx.github.io/posts/dotnet-datareader-map/</link><pubDate>Sat, 25 Feb 2023 16:06:50 +0800</pubDate><guid>https://samxxxxx.github.io/posts/dotnet-datareader-map/</guid><description>SAM.Net开发日常 https://samxxxxx.github.io/posts/dotnet-datareader-map/ -&lt;div class="highlight">&lt;pre tabindex="0" style="color:#e2e4e5;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-c#" data-lang="c#">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e">#region Mapper&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff6ac1">public&lt;/span> &lt;span style="color:#ff6ac1">static&lt;/span> IEnumerable&amp;lt;T&amp;gt; ReaderTo&amp;lt;T&amp;gt;(&lt;span style="color:#ff6ac1">this&lt;/span> IDataReader dataReader)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> System.Diagnostics.Stopwatch sw = &lt;span style="color:#ff6ac1">new&lt;/span> System.Diagnostics.Stopwatch();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sw.Start();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> mapper = CreateMappingFunction(dataReader, &lt;span style="color:#ff6ac1">typeof&lt;/span>(T));
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">while&lt;/span> (dataReader.Read())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> result = mapper(dataReader &lt;span style="color:#ff6ac1">as&lt;/span> DbDataReader);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">yield&lt;/span> &lt;span style="color:#ff6ac1">return&lt;/span> result &lt;span style="color:#ff6ac1">is&lt;/span> T ? (T)result : &lt;span style="color:#ff6ac1">default&lt;/span>(T);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> sw.Stop();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Console.WriteLine(&lt;span style="color:#5af78e">&amp;#34;耗时: {0} 毫秒.&amp;#34;&lt;/span>, sw.ElapsedMilliseconds);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff6ac1">private&lt;/span> &lt;span style="color:#ff6ac1">static&lt;/span> Func&amp;lt;DbDataReader, &lt;span style="color:#9aedfe">object&lt;/span>&amp;gt; CreateMappingFunction(IDataReader reader, Type type)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//1. 取得sql select所有栏位名称&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> names = Enumerable.Range(&lt;span style="color:#ff9f43">0&lt;/span>, reader.FieldCount).Select(index =&amp;gt; reader.GetName(index)).ToArray();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//2. 取得mapping类别的属性资料 &amp;gt; 将index,sql栏位,class属性资料做好对应封装在一个变量内方便后面使用&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> props = type.GetProperties().ToList();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> members = names.Select((columnName, index) =&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> property = props.Find(p =&amp;gt; &lt;span style="color:#9aedfe">string&lt;/span>.Equals(p.Name, columnName, StringComparison.OrdinalIgnoreCase));
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">return&lt;/span> &lt;span style="color:#ff6ac1">new&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> index,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> columnName,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> property
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> };
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }).Where(x =&amp;gt; x.property != &lt;span style="color:#ff6ac1">null&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//3. 动态建立方法 : 从数据库Reader按照顺序读取我们要的资料&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">/*方法逻辑 :
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> User 动态方法(IDataReader reader)
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> {
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> var user = new User();
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> var value = reader[0];
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> if( !(value is System.DBNull) )
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> user.Name = (string)value;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> value = reader[1];
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> if( !(value is System.DBNull) )
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> user.Age = (int)value;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> return user;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> }
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#78787e"> */&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exBodys = &lt;span style="color:#ff6ac1">new&lt;/span> List&amp;lt;Expression&amp;gt;();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">// 方法(IDataReader reader)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exParam = Expression.Parameter(&lt;span style="color:#ff6ac1">typeof&lt;/span>(DbDataReader), &lt;span style="color:#5af78e">&amp;#34;reader&amp;#34;&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">// Mapping类别 物件 = new Mapping类别();&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exVar = Expression.Variable(type, &lt;span style="color:#5af78e">&amp;#34;mappingObj&amp;#34;&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exNew = Expression.New(type);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exBodys.Add(Expression.Assign(exVar, exNew));
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">// var value = defalut(object);&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exValueVar = Expression.Variable(&lt;span style="color:#ff6ac1">typeof&lt;/span>(&lt;span style="color:#9aedfe">object&lt;/span>), &lt;span style="color:#5af78e">&amp;#34;value&amp;#34;&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exBodys.Add(Expression.Assign(exValueVar, Expression.Constant(&lt;span style="color:#ff6ac1">null&lt;/span>)));
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> getItemMethod = &lt;span style="color:#ff6ac1">typeof&lt;/span>(DbDataReader)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .GetMethods()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .Where(w =&amp;gt; w.Name == &lt;span style="color:#5af78e">&amp;#34;get_Item&amp;#34;&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .First(w =&amp;gt; w.GetParameters().First().ParameterType == &lt;span style="color:#ff6ac1">typeof&lt;/span>(&lt;span style="color:#9aedfe">int&lt;/span>));
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">foreach&lt;/span> (&lt;span style="color:#9aedfe">var&lt;/span> m &lt;span style="color:#ff6ac1">in&lt;/span> members)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">if&lt;/span> (m.property == &lt;span style="color:#ff6ac1">null&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">continue&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//reader[0]&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exCall = Expression.Call(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exParam,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> getItemMethod,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Expression.Constant(m.index)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> );
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">// value = reader[0];&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exBodys.Add(Expression.Assign(exValueVar, exCall));
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//user.Name = (string)value;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exProp = Expression.Property(exVar, m.property.Name);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//https://stackoverflow.com/questions/2850265/calling-a-generic-method-using-lambda-expressions-and-a-type-only-known-at-runt&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exParseCall = Expression.Call(&lt;span style="color:#ff6ac1">typeof&lt;/span>(ExpressionMapper), &lt;span style="color:#5af78e">&amp;#34;Parse&amp;#34;&lt;/span>, &lt;span style="color:#ff6ac1">new&lt;/span> Type[] { m.property.PropertyType }, exValueVar);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> assign = Expression.Assign(exProp, exParseCall);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> exIfThenElse = Expression.IfThenElse(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Expression.TypeIs(exValueVar, &lt;span style="color:#ff6ac1">typeof&lt;/span>(System.DBNull)), Expression.Default(m.property.PropertyType), assign
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> );
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exBodys.Add(exIfThenElse);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">// return user; &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exBodys.Add(exVar);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">// Compiler Expression &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> lambda = Expression.Lambda&amp;lt;Func&amp;lt;DbDataReader, &lt;span style="color:#9aedfe">object&lt;/span>&amp;gt;&amp;gt;(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Expression.Block(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">new&lt;/span>[] { exVar, exValueVar },
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exBodys
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> ), exParam
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> );
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">return&lt;/span> lambda.Compile();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff6ac1">public&lt;/span> &lt;span style="color:#ff6ac1">static&lt;/span> T Parse&amp;lt;T&amp;gt;(&lt;span style="color:#9aedfe">object&lt;/span> &lt;span style="color:#ff6ac1">value&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>{
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">if&lt;/span> (&lt;span style="color:#ff6ac1">value&lt;/span> == &lt;span style="color:#ff6ac1">null&lt;/span> || &lt;span style="color:#ff6ac1">value&lt;/span> == DBNull.Value)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">return&lt;/span> &lt;span style="color:#ff6ac1">default&lt;/span>(T);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">if&lt;/span> (&lt;span style="color:#ff6ac1">value&lt;/span> &lt;span style="color:#ff6ac1">is&lt;/span> T)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">return&lt;/span> (T)&lt;span style="color:#ff6ac1">value&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#9aedfe">var&lt;/span> type = &lt;span style="color:#ff6ac1">typeof&lt;/span>(T);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type = Nullable.GetUnderlyingType(type) ?? type;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">if&lt;/span> (type.IsEnum)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">if&lt;/span> (&lt;span style="color:#ff6ac1">value&lt;/span> &lt;span style="color:#ff6ac1">is&lt;/span> &lt;span style="color:#9aedfe">float&lt;/span> || &lt;span style="color:#ff6ac1">value&lt;/span> &lt;span style="color:#ff6ac1">is&lt;/span> &lt;span style="color:#9aedfe">double&lt;/span> || &lt;span style="color:#ff6ac1">value&lt;/span> &lt;span style="color:#ff6ac1">is&lt;/span> &lt;span style="color:#9aedfe">decimal&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">value&lt;/span> = Convert.ChangeType(&lt;span style="color:#ff6ac1">value&lt;/span>, Enum.GetUnderlyingType(type), CultureInfo.InvariantCulture);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">return&lt;/span> (T)Enum.ToObject(type, &lt;span style="color:#ff6ac1">value&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//if (typeHandlers.TryGetValue(type, out ITypeHandler handler))&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//{&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">// return (T)handler.Parse(type, value);&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#78787e">//}&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">return&lt;/span> (T)Convert.ChangeType(&lt;span style="color:#ff6ac1">value&lt;/span>, type, CultureInfo.InvariantCulture);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff5c57">#&lt;/span>endregion
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>- https://samxxxxx.github.io/posts/dotnet-datareader-map/ -</description></item><item><title>DotNet Wcf添加Knowntype</title><link>https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/</link><pubDate>Sat, 25 Feb 2023 16:04:51 +0800</pubDate><guid>https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/</guid><description>SAM.Net开发日常 https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/ -&lt;h1 id="配置">配置&lt;/h1>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#e2e4e5;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-xml" data-lang="xml">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff6ac1">&amp;lt;system.runtime.serialization&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff6ac1">&amp;lt;dataContractSerializer&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">&amp;lt;declaredTypes&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">&amp;lt;add&lt;/span> &lt;span style="color:#57c7ff">type =&lt;/span> &lt;span style="color:#5af78e">&amp;#34;Baidu.Modules.DataContract.Equipment.EquimentModel,TopStrong.Modules.DataContract,Version=1.0.0.0,Culture=neutral,PublicKeyToken=null, processorArchitecture=MSIL&amp;#34;&lt;/span>&lt;span style="color:#ff6ac1">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">&amp;lt;knownType&lt;/span> &lt;span style="color:#57c7ff">type =&lt;/span> &lt;span style="color:#5af78e">&amp;#34;Baidu.Modules.DataContract.Equipment.PointCheckStd,TopStrong.Modules.DataContract, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null, processorArchitecture=MSIL&amp;#34;&lt;/span>&lt;span style="color:#ff6ac1">/&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">&amp;lt;/add&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ff6ac1">&amp;lt;/declaredTypes&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff6ac1">&amp;lt;/dataContractSerializer&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#ff6ac1">&amp;lt;/system.runtime.serialization&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>- https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/ -</description></item><item><title>DotNet Wcf添加服务调试日志</title><link>https://samxxxxx.github.io/posts/net-wcf-add-log-enable/</link><pubDate>Sat, 25 Feb 2023 15:58:07 +0800</pubDate><guid>https://samxxxxx.github.io/posts/net-wcf-add-log-enable/</guid><description>SAM.Net开发日常 https://samxxxxx.github.io/posts/net-wcf-add-log-enable/ -&lt;p>在web.config文件中，将配置添加到configuration节中，重启服务后日志文件将写入到c:\temp\log\log_Traces.svclog&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#e2e4e5;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-c#" data-lang="c#">&lt;span style="display:flex;">&lt;span>&amp;lt;system.diagnostics&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;sources&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;source name=&lt;span style="color:#5af78e">&amp;#34;System.ServiceModel&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> switchValue=&lt;span style="color:#5af78e">&amp;#34;Information, ActivityTracing&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> propagateActivity=&lt;span style="color:#5af78e">&amp;#34;true&amp;#34;&lt;/span>&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;listeners&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;&lt;span style="color:#ff6ac1">add&lt;/span> name=&lt;span style="color:#5af78e">&amp;#34;traceListener&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> type=&lt;span style="color:#5af78e">&amp;#34;System.Diagnostics.XmlWriterTraceListener&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> initializeData=&lt;span style="color:#5af78e">&amp;#34;c:\temp\log\log_Traces.svclog&amp;#34;&lt;/span> /&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;/listeners&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;/source&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;/sources&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;/system.diagnostics&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>- https://samxxxxx.github.io/posts/net-wcf-add-log-enable/ -</description></item><item><title>Hello World</title><link>https://samxxxxx.github.io/posts/my-first-post/</link><pubDate>Sat, 25 Feb 2023 11:48:44 +0800</pubDate><guid>https://samxxxxx.github.io/posts/my-first-post/</guid><description>SAM.Net开发日常 https://samxxxxx.github.io/posts/my-first-post/ -&lt;p>this is test&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#e2e4e5;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-c#" data-lang="c#">&lt;span style="display:flex;">&lt;span>Console.WriteLine(&lt;span style="color:#5af78e">&amp;#34;hellow World&amp;#34;&lt;/span>);
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>- https://samxxxxx.github.io/posts/my-first-post/ -</description></item></channel></rss>
