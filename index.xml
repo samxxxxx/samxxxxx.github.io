@@ -1,0 +1,124 @@
+<?xml-stylesheet href="/rss.xsl" type="text/xsl"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>SAM</title><link>https://samxxxxx.github.io/</link><description>Recent content on SAM</description><generator>Hugo -- gohugo.io</generator><language>en</language><lastBuildDate>Sat, 25 Feb 2023 16:06:50 +0800</lastBuildDate><atom:link href="https://samxxxxx.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>Dotnet DataReader映射到实体</title><link>https://samxxxxx.github.io/posts/dotnet-datareader-map/</link><pubDate>Sat, 25 Feb 2023 16:06:50 +0800</pubDate><guid>https://samxxxxx.github.io/posts/dotnet-datareader-map/</guid><description>SAM https://samxxxxx.github.io/posts/dotnet-datareader-map/ -&lt;p>`
+#region Mapper&lt;/p>
+&lt;p>public static IEnumerable&lt;!-- raw HTML omitted --> ReaderTo&lt;!-- raw HTML omitted -->(this IDataReader dataReader)
+{
+System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+sw.Start();
+var mapper = CreateMappingFunction(dataReader, typeof(T));
+while (dataReader.Read())
+{
+var result = mapper(dataReader as DbDataReader);
+yield return result is T ? (T)result : default(T);
+}
+sw.Stop();
+Console.WriteLine(&amp;ldquo;耗时: {0} 毫秒.&amp;rdquo;, sw.ElapsedMilliseconds);
+}&lt;/p>
+&lt;p>private static Func&amp;lt;DbDataReader, object&amp;gt; CreateMappingFunction(IDataReader reader, Type type)
+{
+//1. 取得sql select所有栏位名称
+var names = Enumerable.Range(0, reader.FieldCount).Select(index =&amp;gt; reader.GetName(index)).ToArray();&lt;/p>
+&lt;pre>&lt;code>//2. 取得mapping类别的属性资料 &amp;gt; 将index,sql栏位,class属性资料做好对应封装在一个变量内方便后面使用
+var props = type.GetProperties().ToList();
+var members = names.Select((columnName, index) =&amp;gt;
+{
+var property = props.Find(p =&amp;gt; string.Equals(p.Name, columnName, StringComparison.OrdinalIgnoreCase));
+return new
+{
+index,
+columnName,
+property
+};
+}).Where(x =&amp;gt; x.property != null);
+//3. 动态建立方法 : 从数据库Reader按照顺序读取我们要的资料
+/*方法逻辑 :
+User 动态方法(IDataReader reader)
+{
+var user = new User();
+var value = reader[0];
+if( !(value is System.DBNull) )
+user.Name = (string)value;
+value = reader[1];
+if( !(value is System.DBNull) )
+user.Age = (int)value;
+return user;
+}
+*/
+var exBodys = new List&amp;lt;Expression&amp;gt;();
+// 方法(IDataReader reader)
+var exParam = Expression.Parameter(typeof(DbDataReader), &amp;quot;reader&amp;quot;);
+// Mapping类别 物件 = new Mapping类别();
+var exVar = Expression.Variable(type, &amp;quot;mappingObj&amp;quot;);
+var exNew = Expression.New(type);
+exBodys.Add(Expression.Assign(exVar, exNew));
+// var value = defalut(object);
+var exValueVar = Expression.Variable(typeof(object), &amp;quot;value&amp;quot;);
+exBodys.Add(Expression.Assign(exValueVar, Expression.Constant(null)));
+var getItemMethod = typeof(DbDataReader)
+.GetMethods()
+.Where(w =&amp;gt; w.Name == &amp;quot;get_Item&amp;quot;)
+.First(w =&amp;gt; w.GetParameters().First().ParameterType == typeof(int));
+foreach (var m in members)
+{
+if (m.property == null)
+continue;
+//reader[0]
+var exCall = Expression.Call(
+exParam,
+getItemMethod,
+Expression.Constant(m.index)
+);
+// value = reader[0];
+exBodys.Add(Expression.Assign(exValueVar, exCall));
+//user.Name = (string)value;
+var exProp = Expression.Property(exVar, m.property.Name);
+//https://stackoverflow.com/questions/2850265/calling-a-generic-method-using-lambda-expressions-and-a-type-only-known-at-runt
+var exParseCall = Expression.Call(typeof(ExpressionMapper), &amp;quot;Parse&amp;quot;, new Type[] { m.property.PropertyType }, exValueVar);
+var assign = Expression.Assign(exProp, exParseCall);
+var exIfThenElse = Expression.IfThenElse(
+Expression.TypeIs(exValueVar, typeof(System.DBNull)), Expression.Default(m.property.PropertyType), assign
+);
+exBodys.Add(exIfThenElse);
+}
+// return user;
+exBodys.Add(exVar);
+// Compiler Expression
+var lambda = Expression.Lambda&amp;lt;Func&amp;lt;DbDataReader, object&amp;gt;&amp;gt;(
+Expression.Block(
+new[] { exVar, exValueVar },
+exBodys
+), exParam
+);
+return lambda.Compile();
+&lt;/code>&lt;/pre>
+&lt;p>}&lt;/p>
+&lt;p>public static T Parse&lt;!-- raw HTML omitted -->(object value)
+{
+if (value == null || value == DBNull.Value)
+return default(T);&lt;/p>
+&lt;pre>&lt;code>if (value is T)
+return (T)value;
+var type = typeof(T);
+type = Nullable.GetUnderlyingType(type) ?? type;
+if (type.IsEnum)
+{
+if (value is float || value is double || value is decimal)
+{
+value = Convert.ChangeType(value, Enum.GetUnderlyingType(type), CultureInfo.InvariantCulture);
+}
+return (T)Enum.ToObject(type, value);
+}
+//if (typeHandlers.TryGetValue(type, out ITypeHandler handler))
+//{
+// return (T)handler.Parse(type, value);
+//}
+return (T)Convert.ChangeType(value, type, CultureInfo.InvariantCulture);
+&lt;/code>&lt;/pre>
+&lt;p>}&lt;/p>
+&lt;p>#endregion
+`&lt;/p>
+- https://samxxxxx.github.io/posts/dotnet-datareader-map/ -</description></item><item><title>DotNet Wcf添加Knowntype</title><link>https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/</link><pubDate>Sat, 25 Feb 2023 16:04:51 +0800</pubDate><guid>https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/</guid><description>SAM https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/ -&lt;p>&lt;code>&amp;lt;system.runtime.serialization&amp;gt; &amp;lt;dataContractSerializer&amp;gt; &amp;lt;declaredTypes&amp;gt; &amp;lt;add type = &amp;quot;Baidu.Modules.DataContract.Equipment.EquimentModel,TopStrong.Modules.DataContract,Version=1.0.0.0,Culture=neutral,PublicKeyToken=null, processorArchitecture=MSIL&amp;quot;&amp;gt; &amp;lt;knownType type = &amp;quot;Baidu.Modules.DataContract.Equipment.PointCheckStd,TopStrong.Modules.DataContract, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null, processorArchitecture=MSIL&amp;quot;/&amp;gt; &amp;lt;/add&amp;gt; &amp;lt;/declaredTypes&amp;gt; &amp;lt;/dataContractSerializer&amp;gt; &amp;lt;/system.runtime.serialization&amp;gt;&lt;/code>&lt;/p>
+- https://samxxxxx.github.io/posts/dotnet-wcf-config-knowntype/ -</description></item><item><title>dotNet Wcf添加服务调试日志</title><link>https://samxxxxx.github.io/posts/net-wcf-add-log-enable/</link><pubDate>Sat, 25 Feb 2023 15:58:07 +0800</pubDate><guid>https://samxxxxx.github.io/posts/net-wcf-add-log-enable/</guid><description>SAM https://samxxxxx.github.io/posts/net-wcf-add-log-enable/ -&lt;p>在web.config文件中，将配置添加到configuration节中，重启服务后日志文件将写入到c:\temp\log\log_Traces.svclog
+&lt;code>&amp;lt;system.diagnostics&amp;gt; &amp;lt;sources&amp;gt; &amp;lt;source name=&amp;quot;System.ServiceModel&amp;quot; switchValue=&amp;quot;Information, ActivityTracing&amp;quot; propagateActivity=&amp;quot;true&amp;quot;&amp;gt; &amp;lt;listeners&amp;gt; &amp;lt;add name=&amp;quot;traceListener&amp;quot; type=&amp;quot;System.Diagnostics.XmlWriterTraceListener&amp;quot; initializeData=&amp;quot;c:\temp\log\log_Traces.svclog&amp;quot; /&amp;gt; &amp;lt;/listeners&amp;gt; &amp;lt;/source&amp;gt; &amp;lt;/sources&amp;gt; &amp;lt;/system.diagnostics&amp;gt;&lt;/code>&lt;/p>
+- https://samxxxxx.github.io/posts/net-wcf-add-log-enable/ -</description></item><item><title>Hello World</title><link>https://samxxxxx.github.io/posts/my-first-post/</link><pubDate>Sat, 25 Feb 2023 11:48:44 +0800</pubDate><guid>https://samxxxxx.github.io/posts/my-first-post/</guid><description>SAM https://samxxxxx.github.io/posts/my-first-post/ -&lt;p>this is test&lt;/p>
+&lt;p>&lt;code>Console.WriteLine(&amp;quot;hellow World&amp;quot;);&lt;/code>&lt;/p>
+- https://samxxxxx.github.io/posts/my-first-post/ -</description></item></channel></rss>
